@@ -1,6 +1,6 @@
 package example.parking.persistence.service;
 
-
+import example.parking.persistence.service.FeeCalculator;
 import example.parking.core.domain.Vehicle;
 import example.parking.core.domain.VehicleType;
 import example.parking.core.Exception.NoSpotAvailableException;

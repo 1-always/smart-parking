@@ -2,6 +2,7 @@ package example.parking.persistence.service;
 
 
 import example.parking.persistence.entity.FeePolicyEntity;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -13,6 +14,7 @@ import java.util.Objects;
  * - Fallback defaults used when policy missing.
  * - Works in cents (avoid floating money arithmetic).
  */
+@Component
 public final class FeeCalculator {
 
     private static final long DEFAULT_BASE_CENTS = 0L;       // default: free base
