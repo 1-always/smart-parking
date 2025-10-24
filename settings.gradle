@@ -1,0 +1,3 @@
+rootProject.name = 'smart-parking'
+include 'parking-core', 'parking-persistence', 'parking-api'
+
