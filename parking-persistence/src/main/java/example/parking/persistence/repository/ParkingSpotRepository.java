@@ -1,5 +1,6 @@
 package example.parking.persistence.repository;
 
+import example.parking.core.domain.SpotType;
 import example.parking.persistence.entity.ParkingSpotEntity;
 import example.parking.core.domain.VehicleType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,16 +13,8 @@ import java.util.UUID;
 @Repository
 public interface ParkingSpotRepository extends JpaRepository<ParkingSpotEntity, UUID> {
 
-    // Find free spots that can fit the vehicle type
-    @Query("""
-        SELECT p FROM ParkingSpotEntity p
-        WHERE p.isOccupied = false
-        AND (
-            (:vehicleType = 'MOTORCYCLE') OR
-            (:vehicleType = 'CAR' AND p.spotType IN ('MEDIUM', 'LARGE')) OR
-            (:vehicleType = 'BUS' AND p.spotType = 'LARGE')
-        )
-        ORDER BY p.spotType ASC
-        """)
-    List<ParkingSpotEntity> findFreeSpotsByVehicleType(VehicleType vehicleType);
+    @Query("SELECT p FROM ParkingSpotEntity p WHERE p.isOccupied = false AND p.spotType IN :spotTypes ORDER BY p.spotType ASC")
+    List<ParkingSpotEntity> findFreeSpotsBySpotTypes(List<SpotType> spotTypes);
 }
+
+

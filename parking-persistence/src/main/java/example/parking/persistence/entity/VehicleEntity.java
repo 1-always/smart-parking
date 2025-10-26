@@ -8,6 +8,7 @@ import java.util.UUID;
 @Table(name = "vehicle")
 public class VehicleEntity {
     @Id
+    @GeneratedValue
     private UUID id;
     private String licenseNumber;
     @Enumerated(EnumType.STRING)

@@ -1,8 +1,8 @@
 package example.parking.persistence.service;
 
-import example.parking.persistence.service.FeeCalculator;
+import example.parking.core.Exception.TicketNotFoundException;
+import example.parking.core.domain.SpotType;
 import example.parking.core.domain.Vehicle;
-import example.parking.core.domain.VehicleType;
 import example.parking.core.Exception.NoSpotAvailableException;
 import example.parking.persistence.entity.ParkingSpotEntity;
 import example.parking.persistence.entity.ParkingTicketEntity;
@@ -11,6 +11,7 @@ import example.parking.persistence.repository.ParkingTicketRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -35,41 +36,57 @@ public class ParkingServiceImpl {
 
     @Transactional
     public ParkingTicketEntity park(Vehicle vehicle) {
-        List<ParkingSpotEntity> freeSpots = spotRepo.findFreeSpotsByVehicleType(vehicle.getType());
-        if (freeSpots.isEmpty()) throw new NoSpotAvailableException();
+        List<SpotType> spotTypes = switch (vehicle.getType()) {
+            case MOTORCYCLE -> List.of(SpotType.SMALL, SpotType.MEDIUM, SpotType.LARGE);
+            case CAR -> List.of(SpotType.MEDIUM, SpotType.LARGE);
+            case BUS -> List.of(SpotType.LARGE);
+        };
+
+        List<ParkingSpotEntity> freeSpots = spotRepo.findFreeSpotsBySpotTypes(spotTypes);
+
+        ParkingTicketEntity ticket = null;
+        if (freeSpots.isEmpty()) throw new NoSpotAvailableException(ticket.getSpotId());
 
         ParkingSpotEntity spot = freeSpots.get(0);
         spot.setOccupied(true);
         spotRepo.save(spot);
 
-        ParkingTicketEntity ticket = new ParkingTicketEntity();
-        ticket.setId(UUID.randomUUID());
-        ticket.setTicketNumber(ticketGenerator.generate());
-        ticket.setVehicleId(UUID.randomUUID()); // for demo
-        ticket.setSpotId(spot.getId());
+        ticket = new ParkingTicketEntity();
         ticket.setEntryTime(Instant.now());
+        ticket.setSpotId(spot.getId());
+        ticket.setVehicleType(vehicle.getType()); // store the type
         ticketRepo.save(ticket);
 
         return ticket;
     }
 
     @Transactional
-    public ParkingTicketEntity unpark(String ticketNumber) {
-        ParkingTicketEntity ticket = ticketRepo.findByTicketNumber(ticketNumber)
-                .orElseThrow(() -> new example.parking.core.Exception.TicketNotFoundException(ticketNumber));
-        ticket.setExitTime(Instant.now());
+        public ParkingTicketEntity unpark(String ticketNumber){
+            ParkingTicketEntity ticket = ticketRepo.findByTicketNumber(ticketNumber)
+                    .orElseThrow(() -> new TicketNotFoundException(ticketNumber));
 
-        // Calculate fee (seconds)
-        long durationSeconds = ticket.getExitTime().getEpochSecond() - ticket.getEntryTime().getEpochSecond();
-        ticket.setFeeCents(feeCalculator.calculateCents(null, durationSeconds));
+            if (ticket.getExitTime() != null) {
+                throw new IllegalStateException("Ticket already unparked");
+            }
 
-        // Mark spot free
-        ParkingSpotEntity spot = spotRepo.findById(ticket.getSpotId()).orElseThrow();
-        spot.setOccupied(false);
-        spotRepo.save(spot);
+            Instant exitTime = Instant.now();
+            ticket.setExitTime(exitTime);
 
-        ticketRepo.save(ticket);
-        return ticket;
-    }
+            Duration duration = Duration.between(ticket.getEntryTime(), exitTime);
+
+            // calculate fee in cents using FeeCalculator (policy=null)
+            long feeCents = feeCalculator.calculateCents(null, duration);
+            ticket.setFeeCents(feeCents);
+
+            // mark parking spot free
+            ParkingSpotEntity spot = spotRepo.findById(ticket.getSpotId())
+                    .orElseThrow(() -> new NoSpotAvailableException(ticket.getSpotId()));
+            spot.setOccupied(false);
+            spotRepo.save(spot);
+
+            ticketRepo.save(ticket);
+
+            return ticket;
+        }
 }
 
