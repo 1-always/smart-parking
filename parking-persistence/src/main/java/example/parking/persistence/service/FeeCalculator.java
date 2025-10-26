@@ -31,44 +31,25 @@ public final class FeeCalculator {
      * @param durationSeconds time in seconds between entry and exit
      * @return billed amount in cents
      */
-    public static long calculateCents(FeePolicyEntity policy, long durationSeconds) {
-        long minutes = Math.max(0L, (durationSeconds + 59) / 60); // ceil to minutes
+    private static final long BASE_AMOUNT_CENTS = 5000;   // ₹50
+    private static final int BASE_MINUTES = 30;
+    private static final long HOURLY_AMOUNT_CENTS = 2000; // ₹20/hour
+    private static final int ROUNDING_MINUTES = 15;
 
-        long baseCents = policy != null && policy.getBaseAmountCents() != null
-                ? policy.getBaseAmountCents()
-                : DEFAULT_BASE_CENTS;
+    public static long calculateCents(Duration duration) {
+        long minutes = duration.toMinutes();
 
-        int baseMinutes = policy != null && policy.getBaseMinutes() != null
-                ? policy.getBaseMinutes()
-                : DEFAULT_BASE_MINUTES;
-
-        long hourlyCents = policy != null && policy.getHourlyAmountCents() != null
-                ? policy.getHourlyAmountCents()
-                : DEFAULT_HOURLY_CENTS;
-
-        int roundingMinutes = policy != null && policy.getRoundingMinutes() != null
-                ? policy.getRoundingMinutes()
-                : DEFAULT_ROUNDING_MINUTES;
-
-        if (minutes <= baseMinutes) {
-            return baseCents;
+        if (minutes <= BASE_MINUTES) {
+            return BASE_AMOUNT_CENTS;
         }
 
-        long remaining = minutes - baseMinutes;
-        long buckets = (remaining + roundingMinutes - 1) / roundingMinutes; // ceil in roundingUnits
+        // Round up to nearest ROUNDING_MINUTES
+        long extraMinutes = minutes - BASE_MINUTES;
+        long rounded = ((extraMinutes + ROUNDING_MINUTES - 1) / ROUNDING_MINUTES) * ROUNDING_MINUTES;
 
-        // convert hourly rate to per-bucket
-        long bucketsPerHour = 60L / roundingMinutes;
-        long perBucketCents = hourlyCents / bucketsPerHour;
-
-        return baseCents + buckets * perBucketCents;
+        long extraHours = (rounded + 59) / 60; // convert to hours
+        return BASE_AMOUNT_CENTS + (extraHours * HOURLY_AMOUNT_CENTS);
     }
 
-    /**
-     * Convenience wrapper: use Duration.
-     */
-    public static long calculateCents(FeePolicyEntity policy, Duration duration) {
-        Objects.requireNonNull(duration);
-        return calculateCents(policy, duration.getSeconds());
-    }
+
 }

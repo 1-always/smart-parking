@@ -80,7 +80,7 @@ public class ParkingServiceImpl {
         // calculate duration and fee
         Duration duration = Duration.between(ticket.getEntryTime(), exitTime);
         System.out.println("duration: " + duration);
-        long feeCents = FeeCalculator.calculateCents(null, duration);
+        long feeCents = FeeCalculator.calculateCents(duration);
         ticket.setFeeCents(feeCents);
 
         // free the parking spot
