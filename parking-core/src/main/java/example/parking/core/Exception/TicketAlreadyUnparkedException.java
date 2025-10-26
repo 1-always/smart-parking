@@ -1,9 +1,11 @@
 package example.parking.core.Exception;
 
-public class TicketNotFoundException extends RuntimeException {
+public class TicketAlreadyUnparkedException extends RuntimeException {
+
     private final String ticketNumber;
-    public TicketNotFoundException(String ticketNumber) {
-        super("Ticket not found: " + ticketNumber);
+
+    public TicketAlreadyUnparkedException(String ticketNumber) {
+        super("Ticket already unparked: " + ticketNumber);
         this.ticketNumber = ticketNumber;
     }
 

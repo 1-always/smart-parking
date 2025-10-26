@@ -1,5 +1,6 @@
 package example.parking.persistence.service;
 
+import example.parking.core.Exception.TicketAlreadyUnparkedException;
 import example.parking.core.Exception.TicketNotFoundException;
 import example.parking.core.domain.SpotType;
 import example.parking.core.domain.Vehicle;
@@ -33,7 +34,6 @@ public class ParkingServiceImpl {
         this.ticketGenerator = ticketGenerator;
         this.feeCalculator = feeCalculator;
     }
-
     @Transactional
     public ParkingTicketEntity park(Vehicle vehicle) {
         List<SpotType> spotTypes = switch (vehicle.getType()) {
@@ -44,49 +44,54 @@ public class ParkingServiceImpl {
 
         List<ParkingSpotEntity> freeSpots = spotRepo.findFreeSpotsBySpotTypes(spotTypes);
 
-        ParkingTicketEntity ticket = null;
-        if (freeSpots.isEmpty()) throw new NoSpotAvailableException(ticket.getSpotId());
+        if (freeSpots.isEmpty()) {
+            // Throw exception with vehicle type
+            throw new NoSpotAvailableException(vehicle.getType().name());
+        }
 
         ParkingSpotEntity spot = freeSpots.get(0);
         spot.setOccupied(true);
         spotRepo.save(spot);
 
-        ticket = new ParkingTicketEntity();
+        ParkingTicketEntity ticket = new ParkingTicketEntity();
         ticket.setEntryTime(Instant.now());
         ticket.setSpotId(spot.getId());
-        ticket.setVehicleType(vehicle.getType()); // store the type
+        ticket.setVehicleType(vehicle.getType());
+        ticket.setTicketNumber(ticketGenerator.generate());
         ticketRepo.save(ticket);
 
         return ticket;
     }
 
     @Transactional
-        public ParkingTicketEntity unpark(String ticketNumber){
-            ParkingTicketEntity ticket = ticketRepo.findByTicketNumber(ticketNumber)
-                    .orElseThrow(() -> new TicketNotFoundException(ticketNumber));
+    public ParkingTicketEntity unpark(String ticketNumber) {
+        ParkingTicketEntity ticket = ticketRepo.findByTicketNumber(ticketNumber)
+                .orElseThrow(() -> new TicketNotFoundException(ticketNumber));
 
-            if (ticket.getExitTime() != null) {
-                throw new IllegalStateException("Ticket already unparked");
-            }
-
-            Instant exitTime = Instant.now();
-            ticket.setExitTime(exitTime);
-
-            Duration duration = Duration.between(ticket.getEntryTime(), exitTime);
-
-            // calculate fee in cents using FeeCalculator (policy=null)
-            long feeCents = feeCalculator.calculateCents(null, duration);
-            ticket.setFeeCents(feeCents);
-
-            // mark parking spot free
-            ParkingSpotEntity spot = spotRepo.findById(ticket.getSpotId())
-                    .orElseThrow(() -> new NoSpotAvailableException(ticket.getSpotId()));
-            spot.setOccupied(false);
-            spotRepo.save(spot);
-
-            ticketRepo.save(ticket);
-
-            return ticket;
+        if (ticket.getExitTime() != null) {
+            // vehicle already unparked → throw friendly exception
+            throw new TicketAlreadyUnparkedException(ticketNumber);
         }
+
+        // set exit time to now
+        Instant exitTime = Instant.now();
+        ticket.setExitTime(exitTime);
+
+        // calculate duration and fee
+        Duration duration = Duration.between(ticket.getEntryTime(), exitTime);
+        System.out.println("duration: " + duration);
+        long feeCents = FeeCalculator.calculateCents(null, duration);
+        ticket.setFeeCents(feeCents);
+
+        // free the parking spot
+        ParkingSpotEntity spot = spotRepo.findById(ticket.getSpotId())
+                .orElseThrow(() -> new NoSpotAvailableException("Unknown spot for ticket: " + ticketNumber));
+        spot.setOccupied(false);
+        spotRepo.save(spot);
+
+        ticketRepo.save(ticket);
+
+        return ticket;
+    }
 }
 
